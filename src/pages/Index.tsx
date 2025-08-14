@@ -10,9 +10,8 @@ import { ConfidenceSection } from "@/components/sections/ConfidenceSection";
 import { SummarizerSection } from "@/components/sections/SummarizerSection";
 import { ProgressSection } from "@/components/sections/ProgressSection";
 import { QuizSection } from "@/components/sections/QuizSection";
-import { PeerToPeerSection } from "@/components/sections/PeerToPeerSection";
 
-type Section = "hero" | "twin" | "tutors" | "confidence" | "summarizer" | "progress" | "quizzes" | "peer";
+type Section = "hero" | "twin" | "tutors" | "confidence" | "summarizer" | "progress" | "quizzes";
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState<Section>("hero");
@@ -37,8 +36,6 @@ const Index = () => {
         return <ProgressSection />;
       case "quizzes":
         return <QuizSection />;
-      case "peer":
-        return <PeerToPeerSection />;
       default:
         return <HeroSection onGetStarted={handleGetStarted} />;
     }

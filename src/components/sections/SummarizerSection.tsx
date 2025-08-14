@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, FileText, BarChart3, Download, Copy, Check, Upload, X } from "lucide-react";
+import { BookOpen, FileText, BarChart3, Download, Copy, Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,9 +24,6 @@ export function SummarizerSection() {
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const generateSummary = async () => {
     if (!inputText.trim()) return;
@@ -89,55 +86,6 @@ export function SummarizerSection() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleFileUpload = (files: FileList | null) => {
-    if (!files) return;
-    
-    const newFiles = Array.from(files).filter(file => {
-      const validTypes = ['text/plain', 'text/csv', 'application/pdf', '.doc', '.docx'];
-      return file.size <= 5 * 1024 * 1024; // 5MB limit
-    });
-    
-    setUploadedFiles(prev => [...prev, ...newFiles]);
-    
-    // Process files to extract text content
-    newFiles.forEach(processFile);
-  };
-
-  const processFile = async (file: File) => {
-    if (file.type === 'text/plain' || file.type === 'text/csv') {
-      const text = await file.text();
-      setInputText(prev => prev + (prev ? '\n\n' : '') + `--- ${file.name} ---\n${text}`);
-    } else if (file.type === 'application/pdf') {
-      // For demo purposes, simulate PDF processing
-      const simulatedText = `This is simulated text content from ${file.name}. In a real implementation, you would use a library like PDF.js to extract the actual text content from the PDF file.`;
-      setInputText(prev => prev + (prev ? '\n\n' : '') + `--- ${file.name} ---\n${simulatedText}`);
-    } else {
-      // For other file types, show placeholder
-      const placeholderText = `File: ${file.name} (${file.type}) - Content extraction would be implemented for this file type.`;
-      setInputText(prev => prev + (prev ? '\n\n' : '') + placeholderText);
-    }
-  };
-
-  const removeFile = (index: number) => {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    handleFileUpload(e.dataTransfer.files);
-  };
-
   const generateMindMap = () => {
     if (!summaryData) return "";
     
@@ -179,64 +127,11 @@ graph TD
               </h3>
               
               <div className="space-y-4">
-                {/* File Upload Area */}
-                <div
-                  className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
-                    isDragOver 
-                      ? 'border-primary bg-primary/5' 
-                      : 'border-muted-foreground/25 hover:border-primary/50'
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Drop files here or click to upload
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Supports: PDF, TXT, DOC, DOCX (Max 5MB each)
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".pdf,.txt,.doc,.docx,.csv"
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                    className="hidden"
-                  />
-                </div>
-
-                {/* Uploaded Files */}
-                {uploadedFiles.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Uploaded Files:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {uploadedFiles.map((file, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center space-x-2 bg-muted rounded-lg px-3 py-1 text-xs"
-                        >
-                          <FileText className="w-3 h-3" />
-                          <span className="truncate max-w-24">{file.name}</span>
-                          <button
-                            onClick={() => removeFile(index)}
-                            className="text-muted-foreground hover:text-foreground"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 <Textarea
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Paste your text here or upload files above to generate an intelligent summary with key concepts, visual aids, and learning insights..."
-                  className="min-h-[200px] resize-none text-sm"
+                  placeholder="Paste your text here to generate an intelligent summary with key concepts, visual aids, and learning insights..."
+                  className="min-h-[300px] resize-none text-sm"
                 />
                 
                 <div className="flex items-center justify-between text-xs text-muted-foreground">

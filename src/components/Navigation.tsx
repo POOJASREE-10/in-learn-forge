@@ -22,7 +22,6 @@ const navigationItems = [
   { name: "Summarizer", icon: BookOpen, section: "summarizer" },
   { name: "Progress", icon: BarChart3, section: "progress" },
   { name: "Quizzes", icon: MessageSquare, section: "quizzes" },
-  { name: "Peer Chat", icon: Users, section: "peer" },
 ];
 
 interface NavigationProps {
@@ -49,7 +48,7 @@ export function Navigation({ activeSection, onSectionChange }: NavigationProps) 
               <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
                 <Brain className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold text-gradient">LearnWitMe</span>
+              <span className="text-xl font-bold text-gradient">LearnForge</span>
             </div>
 
             <div className="flex items-center space-x-1">
@@ -114,7 +113,7 @@ export function Navigation({ activeSection, onSectionChange }: NavigationProps) 
               <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
                 <Brain className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="text-lg font-bold text-gradient">LearnWitMe</span>
+              <span className="text-lg font-bold text-gradient">LearnForge</span>
             </div>
 
             <div className="flex items-center space-x-2">
