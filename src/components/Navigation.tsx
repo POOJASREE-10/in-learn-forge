@@ -7,6 +7,7 @@ import {
   BookOpen, 
   BarChart3, 
   MessageSquare,
+  Video,
   Sun,
   Moon,
   Menu,
@@ -22,6 +23,7 @@ const navigationItems = [
   { name: "Summarizer", icon: BookOpen, section: "summarizer" },
   { name: "Progress", icon: BarChart3, section: "progress" },
   { name: "Quizzes", icon: MessageSquare, section: "quizzes" },
+  { name: "Peer Chat", icon: Video, section: "peer" },
 ];
 
 interface NavigationProps {

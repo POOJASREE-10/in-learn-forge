@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Clock, CheckCircle, XCircle, Lightbulb, RotateCcw } from "lucide-react";
+import { MessageSquare, Clock, CheckCircle, XCircle, Lightbulb, RotateCcw, BarChart3 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Question {
   id: string;
@@ -72,6 +73,69 @@ const sampleQuestions: Question[] = [
   }
 ];
 
+// Function to generate questions from content
+const generateContentBasedQuestions = (content: string): Question[] => {
+  if (!content.trim()) return sampleQuestions;
+  
+  const words = content.toLowerCase().split(/\s+/);
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  
+  // Extract key terms
+  const keyTerms = words
+    .filter(word => word.length > 4)
+    .reduce((acc: Record<string, number>, word) => {
+      acc[word] = (acc[word] || 0) + 1;
+      return acc;
+    }, {});
+  
+  const topTerms = Object.entries(keyTerms)
+    .sort(([,a], [,b]) => b - a)
+    .slice(0, 10)
+    .map(([word]) => word);
+
+  // Generate questions based on content
+  const contentQuestions: Question[] = [];
+  
+  if (topTerms.length >= 2) {
+    contentQuestions.push({
+      id: "content-1",
+      question: `Based on the content, what is the main relationship between ${topTerms[0]} and ${topTerms[1]}?`,
+      options: [
+        `${topTerms[0]} directly causes ${topTerms[1]}`,
+        `${topTerms[0]} and ${topTerms[1]} are interconnected concepts`,
+        `${topTerms[0]} is completely unrelated to ${topTerms[1]}`,
+        `${topTerms[1]} always precedes ${topTerms[0]}`
+      ],
+      correctAnswer: 1,
+      explanation: `The content discusses how ${topTerms[0]} and ${topTerms[1]} work together as interconnected concepts, each influencing and supporting the other.`,
+      story: `Think of ${topTerms[0]} and ${topTerms[1]} as dance partners. They move together in harmony, with each step of one complementing the movement of the other. Neither can perform the full dance alone - they need each other to create the complete performance described in the text.`,
+      difficulty: "medium",
+      topic: "Content Analysis"
+    });
+  }
+  
+  if (sentences.length >= 3) {
+    const mainIdea = sentences[0].trim();
+    contentQuestions.push({
+      id: "content-2",
+      question: `What is the central theme discussed in this content?`,
+      options: [
+        `The importance of ${topTerms[2] || 'theoretical concepts'}`,
+        `Practical applications of ${topTerms[0] || 'key principles'}`,
+        `Historical development of ${topTerms[1] || 'main ideas'}`,
+        `Future implications of ${topTerms[3] || 'current trends'}`
+      ],
+      correctAnswer: 1,
+      explanation: `The content primarily focuses on the practical applications and real-world implementation of the concepts discussed.`,
+      story: `Imagine the content as a roadmap. While it mentions various landmarks (theories and concepts), the main path it guides you along is toward practical destinations where you can actually use what you've learned in real situations.`,
+      difficulty: "medium",
+      topic: "Content Analysis"
+    });
+  }
+  
+  return contentQuestions.length > 0 ? [...contentQuestions, ...sampleQuestions.slice(0, 1)] : sampleQuestions;
+};
+
 export function QuizSection() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -81,9 +145,24 @@ export function QuizSection() {
   const [quizStartTime, setQuizStartTime] = useState(Date.now());
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
   const [isQuizComplete, setIsQuizComplete] = useState(false);
+  const [contentInput, setContentInput] = useState("");
+  const [questions, setQuestions] = useState<Question[]>(sampleQuestions);
 
-  const question = sampleQuestions[currentQuestion];
-  const progress = ((currentQuestion + 1) / sampleQuestions.length) * 100;
+  const question = questions[currentQuestion];
+  const progress = ((currentQuestion + 1) / questions.length) * 100;
+
+  const generateQuiz = () => {
+    const newQuestions = generateContentBasedQuestions(contentInput);
+    setQuestions(newQuestions);
+    setCurrentQuestion(0);
+    setSelectedAnswer(null);
+    setShowExplanation(false);
+    setShowStory(false);
+    setQuizResults([]);
+    setIsQuizComplete(false);
+    setQuizStartTime(Date.now());
+    setQuestionStartTime(Date.now());
+  };
 
   const handleAnswerSelect = (answerIndex: number) => {
     setSelectedAnswer(answerIndex);
@@ -107,7 +186,7 @@ export function QuizSection() {
   };
 
   const handleNextQuestion = () => {
-    if (currentQuestion < sampleQuestions.length - 1) {
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
       setSelectedAnswer(null);
       setShowExplanation(false);
@@ -181,7 +260,7 @@ export function QuizSection() {
             </div>
 
             <div className="space-y-4 mb-8">
-              {sampleQuestions.map((q, index) => {
+              {questions.map((q, index) => {
                 const result = quizResults[index];
                 const Icon = result.isCorrect ? CheckCircle : XCircle;
                 const color = result.isCorrect ? "success" : "destructive";
@@ -226,21 +305,44 @@ export function QuizSection() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <MessageSquare className="w-8 h-8 text-primary-foreground" />
+        <div className="mb-8">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <MessageSquare className="w-8 h-8 text-primary-foreground" />
+            </div>
+            <h2 className="text-3xl font-bold mb-2">Interactive Learning Quiz</h2>
+            <p className="text-muted-foreground text-lg">
+              Generate quizzes from your content with real-time feedback and story-based explanations
+            </p>
           </div>
-          <h2 className="text-3xl font-bold mb-2">Interactive Learning Quiz</h2>
-          <p className="text-muted-foreground text-lg">
-            Test your knowledge with real-time feedback and story-based explanations
-          </p>
+
+          {/* Content Input for Quiz Generation */}
+          <Card className="glass-card p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-4">Generate Quiz from Your Content</h3>
+            <div className="space-y-4">
+              <Textarea
+                value={contentInput}
+                onChange={(e) => setContentInput(e.target.value)}
+                placeholder="Paste any text content here to generate relevant questions..."
+                className="min-h-[120px] resize-none text-sm"
+              />
+              <Button
+                onClick={generateQuiz}
+                disabled={!contentInput.trim()}
+                className="gradient-primary hover-glow"
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Generate Content-Based Quiz
+              </Button>
+            </div>
+          </Card>
         </div>
 
         {/* Progress Bar */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">
-              Question {currentQuestion + 1} of {sampleQuestions.length}
+              Question {currentQuestion + 1} of {questions.length}
             </span>
             <Badge variant="secondary">
               {question.difficulty} • {question.topic}
@@ -311,7 +413,7 @@ export function QuizSection() {
                       size="lg"
                       className="gradient-secondary hover-glow"
                     >
-                      {currentQuestion < sampleQuestions.length - 1 ? "Next Question" : "Finish Quiz"}
+                      {currentQuestion < questions.length - 1 ? "Next Question" : "Finish Quiz"}
                     </Button>
                   )}
                 </div>
@@ -388,7 +490,7 @@ export function QuizSection() {
               <div className="space-y-4">
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Questions</span>
-                  <span className="font-medium">{currentQuestion + 1}/{sampleQuestions.length}</span>
+                  <span className="font-medium">{currentQuestion + 1}/{questions.length}</span>
                 </div>
                 
                 <div className="flex justify-between">
@@ -410,7 +512,7 @@ export function QuizSection() {
             <Card className="glass-card p-6">
               <h3 className="font-semibold mb-4">Question History</h3>
               <div className="space-y-2">
-                {sampleQuestions.slice(0, currentQuestion + 1).map((q, index) => {
+                {questions.slice(0, currentQuestion + 1).map((q, index) => {
                   const result = quizResults[index];
                   
                   return (

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, FileText, BarChart3, Download, Copy, Check } from "lucide-react";
+import { BookOpen, FileText, BarChart3, Download, Copy, Check, Upload, File } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +24,7 @@ export function SummarizerSection() {
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   const generateSummary = async () => {
     if (!inputText.trim()) return;
@@ -86,6 +87,34 @@ export function SummarizerSection() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleFileUpload = async (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setInputText(content);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+  };
+
   const generateMindMap = () => {
     if (!summaryData) return "";
     
@@ -127,11 +156,44 @@ graph TD
               </h3>
               
               <div className="space-y-4">
+                {/* File Upload Area */}
+                <div
+                  className={`border-2 border-dashed rounded-lg p-4 transition-colors ${
+                    dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25"
+                  }`}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                >
+                  <div className="text-center">
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Drop files here or click to upload
+                    </p>
+                    <input
+                      type="file"
+                      accept=".txt,.pdf,.doc,.docx,.csv"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileUpload(file);
+                      }}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="text-xs text-primary cursor-pointer hover:underline"
+                    >
+                      Supported: TXT, PDF, DOC, DOCX, CSV
+                    </label>
+                  </div>
+                </div>
+
                 <Textarea
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Paste your text here to generate an intelligent summary with key concepts, visual aids, and learning insights..."
-                  className="min-h-[300px] resize-none text-sm"
+                  placeholder="Paste your text here or upload a file to generate an intelligent summary with key concepts, visual aids, and learning insights..."
+                  className="min-h-[250px] resize-none text-sm"
                 />
                 
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
