@@ -10,7 +10,12 @@ import {
   Users, 
   Send,
   Camera,
-  Settings
+  Settings,
+  Copy,
+  Check,
+  Wifi,
+  MessageCircle,
+  User
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,16 +23,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-interface PeerConnection {
-  id: string;
-  name: string;
-  skillLevel: number;
-  status: "online" | "busy" | "offline";
-}
-
 interface Message {
   id: string;
   senderId: string;
+  senderName: string;
   content: string;
   timestamp: Date;
 }
@@ -36,20 +35,25 @@ export function PeerToPeerSection() {
   const [isConnected, setIsConnected] = useState(false);
   const [videoEnabled, setVideoEnabled] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [peers, setPeers] = useState<PeerConnection[]>([
-    { id: "1", name: "Alex Chen", skillLevel: 75, status: "online" },
-    { id: "2", name: "Sarah Kim", skillLevel: 68, status: "online" },
-    { id: "3", name: "Mike Rodriguez", skillLevel: 82, status: "busy" },
-    { id: "4", name: "Emma Wilson", skillLevel: 71, status: "online" },
-  ]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [connectedPeer, setConnectedPeer] = useState<PeerConnection | null>(null);
-  const [userSkillLevel] = useState(72); // Simulated user skill level
+  const [userSkillLevel] = useState(5); // User skill level (1-10)
+  const [userName] = useState("User");
+  const [connectionId] = useState("VUDQEC"); // Generate random connection ID
+  const [peerConnectionId, setPeerConnectionId] = useState("");
+  const [connectedPeerName, setConnectedPeerName] = useState("");
+  const [connectedPeerSkill, setConnectedPeerSkill] = useState(2);
+  const [copied, setCopied] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+
+  const generateConnectionId = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  };
 
   const initializeCamera = async () => {
     try {
@@ -70,26 +74,38 @@ export function PeerToPeerSection() {
     }
   };
 
-  const connectToPeer = async (peer: PeerConnection) => {
-    setConnectedPeer(peer);
-    setIsConnected(true);
+  const connectToPeer = async () => {
+    if (!peerConnectionId.trim()) return;
+    
+    setIsConnecting(true);
+    
+    // Simulate connection process
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Initialize camera when connecting
     await initializeCamera();
     
-    // Simulate receiving initial message
+    setIsConnected(true);
+    setConnectedPeerName(`User ${peerConnectionId}`);
+    setConnectedPeerSkill(Math.floor(Math.random() * 10) + 1);
+    setIsConnecting(false);
+    
+    // Add welcome message
     const welcomeMessage: Message = {
       id: Date.now().toString(),
-      senderId: peer.id,
-      content: `Hi! I'm ${peer.name}. Ready to learn together?`,
+      senderId: "system",
+      senderName: "System",
+      content: "Connected successfully! Start your learning conversation.",
       timestamp: new Date()
     };
     setMessages([welcomeMessage]);
   };
 
   const disconnectFromPeer = () => {
-    setConnectedPeer(null);
     setIsConnected(false);
+    setConnectedPeerName("");
+    setConnectedPeerSkill(0);
+    setPeerConnectionId("");
     setMessages([]);
     
     // Stop video stream
@@ -98,8 +114,20 @@ export function PeerToPeerSection() {
       localStreamRef.current = null;
     }
     
+    // Close peer connection
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+    
     setVideoEnabled(false);
     setAudioEnabled(false);
+  };
+
+  const copyConnectionId = async () => {
+    await navigator.clipboard.writeText(connectionId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const toggleVideo = () => {
@@ -123,11 +151,12 @@ export function PeerToPeerSection() {
   };
 
   const sendMessage = () => {
-    if (!newMessage.trim() || !connectedPeer) return;
+    if (!newMessage.trim() || !isConnected) return;
     
     const message: Message = {
       id: Date.now().toString(),
       senderId: "user",
+      senderName: userName,
       content: newMessage,
       timestamp: new Date()
     };
@@ -142,12 +171,16 @@ export function PeerToPeerSection() {
         "I hadn't thought of it that way.",
         "Could you explain that further?",
         "That makes sense. What about...",
-        "I agree! Let's explore this more."
+        "I agree! Let's explore this more.",
+        "Thanks for sharing that insight!",
+        "Let's work on this problem together.",
+        "Can you help me understand this concept?"
       ];
       
       const response: Message = {
         id: (Date.now() + 1).toString(),
-        senderId: connectedPeer.id,
+        senderId: "peer",
+        senderName: connectedPeerName,
         content: responses[Math.floor(Math.random() * responses.length)],
         timestamp: new Date()
       };
@@ -156,18 +189,17 @@ export function PeerToPeerSection() {
     }, 1000 + Math.random() * 2000);
   };
 
-  const getSkillLevelColor = (level: number) => {
-    if (level < 50) return "text-orange-500";
-    if (level < 75) return "text-blue-500";
-    return "text-green-500";
-  };
-
-  const getMatchScore = (peerLevel: number) => {
-    const diff = Math.abs(userSkillLevel - peerLevel);
-    if (diff <= 5) return "Perfect";
-    if (diff <= 15) return "Good";
-    return "Fair";
-  };
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+      }
+    };
+  }, []);
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -180,267 +212,259 @@ export function PeerToPeerSection() {
           <div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Users className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h2 className="text-3xl font-bold mb-2">Peer-to-Peer Learning</h2>
+          <h2 className="text-3xl font-bold mb-2">Peer Chat</h2>
           <p className="text-muted-foreground text-lg">
-            Connect with learners at your skill level for collaborative study sessions
+            Connect with fellow learners for collaborative study sessions
           </p>
         </div>
 
-        {!isConnected ? (
-          // Peer Selection View
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Your Profile */}
-            <Card className="glass-card p-6">
-              <h3 className="text-xl font-semibold mb-4 flex items-center">
-                <Settings className="w-5 h-5 mr-2 text-primary" />
-                Your Profile
-              </h3>
-              
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 gradient-primary rounded-full flex items-center justify-center mx-auto mb-3">
-                  <span className="text-lg font-bold text-primary-foreground">You</span>
-                </div>
-                <h4 className="font-semibold">Your Learning Level</h4>
-                <div className={`text-2xl font-bold ${getSkillLevelColor(userSkillLevel)}`}>
-                  {userSkillLevel}%
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span>Quiz Performance</span>
-                  <span className="font-medium">75%</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Study Sessions</span>
-                  <span className="font-medium">12</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Topics Mastered</span>
-                  <span className="font-medium">8</span>
-                </div>
-              </div>
-            </Card>
-
-            {/* Available Peers */}
-            <div className="lg:col-span-2">
-              <Card className="glass-card p-6">
-                <h3 className="text-xl font-semibold mb-6 flex items-center">
-                  <Users className="w-5 h-5 mr-2 text-primary" />
-                  Available Study Partners
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {peers.map((peer) => (
-                    <motion.div
-                      key={peer.id}
-                      className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors"
-                      whileHover={{ scale: 1.02 }}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 gradient-secondary rounded-full flex items-center justify-center">
-                            <span className="text-sm font-bold text-secondary-foreground">
-                              {peer.name.split(' ').map(n => n[0]).join('')}
-                            </span>
-                          </div>
-                          <div>
-                            <h4 className="font-semibold">{peer.name}</h4>
-                            <div className="flex items-center space-x-2">
-                              <Badge 
-                                variant={peer.status === "online" ? "default" : "secondary"}
-                                className="text-xs"
-                              >
-                                {peer.status}
-                              </Badge>
-                              <span className={`text-sm font-medium ${getSkillLevelColor(peer.skillLevel)}`}>
-                                {peer.skillLevel}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                          <span>Match Score</span>
-                          <span>{getMatchScore(peer.skillLevel)}</span>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-2">
-                          <div 
-                            className="h-2 bg-gradient-primary rounded-full transition-all duration-1000"
-                            style={{ 
-                              width: `${Math.max(20, 100 - Math.abs(userSkillLevel - peer.skillLevel))}%` 
-                            }}
-                          />
-                        </div>
-                      </div>
-                      
-                      <Button
-                        onClick={() => connectToPeer(peer)}
-                        disabled={peer.status !== "online"}
-                        size="sm"
-                        className="w-full gradient-primary hover-glow"
-                      >
-                        <Video className="w-4 h-4 mr-2" />
-                        Connect & Study
-                      </Button>
-                    </motion.div>
-                  ))}
-                </div>
-              </Card>
-            </div>
-          </div>
-        ) : (
-          // Connected View
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Video Call Area */}
-            <div className="lg:col-span-2 space-y-4">
-              <Card className="glass-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold flex items-center">
-                    <Video className="w-5 h-5 mr-2 text-primary" />
-                    Study Session with {connectedPeer?.name}
-                  </h3>
-                  <Badge variant="default" className="bg-green-500">
-                    Connected
-                  </Badge>
-                </div>
-                
-                {/* Video Streams */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  {/* Local Video */}
-                  <div className="relative bg-muted rounded-lg overflow-hidden aspect-video">
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-sm">
-                      You
-                    </div>
-                    {!videoEnabled && (
-                      <div className="absolute inset-0 bg-muted flex items-center justify-center">
-                        <div className="text-center">
-                          <VideoOff className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">Camera Off</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Remote Video */}
-                  <div className="relative bg-muted rounded-lg overflow-hidden aspect-video">
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-secondary">
-                      <div className="text-center text-secondary-foreground">
-                        <Camera className="w-12 h-12 mx-auto mb-2" />
-                        <span className="font-medium">{connectedPeer?.name}</span>
-                      </div>
-                    </div>
-                    <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-sm">
-                      {connectedPeer?.name}
-                    </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Connection Panel */}
+          <Card className="glass-card p-6">
+            <h3 className="text-xl font-semibold mb-6 flex items-center">
+              <Wifi className="w-5 h-5 mr-2 text-primary" />
+              Connection
+            </h3>
+            
+            {!isConnected ? (
+              <div className="space-y-6">
+                {/* User Info */}
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground block mb-2">
+                    Your Name
+                  </label>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <span className="font-medium">{userName}</span>
                   </div>
                 </div>
-                
-                {/* Call Controls */}
-                <div className="flex items-center justify-center space-x-4">
+
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground block mb-2">
+                    Skill Level (1-10)
+                  </label>
+                  <div className="p-3 bg-muted rounded-lg">
+                    <span className="font-medium text-2xl">{userSkillLevel}</span>
+                  </div>
+                </div>
+
+                {/* Connection ID */}
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground block mb-2">
+                    Your Connection ID
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <div className="flex-1 p-3 bg-primary/10 border-2 border-primary rounded-lg">
+                      <span className="font-mono font-bold text-primary">{connectionId}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={copyConnectionId}
+                      className="px-3"
+                    >
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Connect to Peer */}
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground block mb-2">
+                    Connect to Peer ID
+                  </label>
+                  <Input
+                    value={peerConnectionId}
+                    onChange={(e) => setPeerConnectionId(e.target.value.toUpperCase())}
+                    placeholder="Enter peer's connection ID"
+                    className="font-mono"
+                  />
+                </div>
+
+                {/* Media Controls */}
+                <div className="flex items-center justify-center space-x-4 py-4">
                   <Button
-                    variant={videoEnabled ? "default" : "secondary"}
+                    variant="outline"
                     size="sm"
-                    onClick={toggleVideo}
                     className="w-12 h-12 rounded-full p-0"
                   >
-                    {videoEnabled ? (
-                      <Video className="w-5 h-5" />
-                    ) : (
-                      <VideoOff className="w-5 h-5" />
-                    )}
+                    <Video className="w-5 h-5" />
                   </Button>
-                  
                   <Button
-                    variant={audioEnabled ? "default" : "secondary"}
+                    variant="outline"
                     size="sm"
-                    onClick={toggleAudio}
                     className="w-12 h-12 rounded-full p-0"
                   >
-                    {audioEnabled ? (
-                      <Mic className="w-5 h-5" />
-                    ) : (
-                      <MicOff className="w-5 h-5" />
-                    )}
-                  </Button>
-                  
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={disconnectFromPeer}
-                    className="w-12 h-12 rounded-full p-0"
-                  >
-                    <PhoneOff className="w-5 h-5" />
+                    <Mic className="w-5 h-5" />
                   </Button>
                 </div>
-              </Card>
-            </div>
 
-            {/* Chat Sidebar */}
-            <Card className="glass-card p-6 h-full">
-              <h3 className="text-lg font-semibold mb-4 flex items-center">
-                <Send className="w-5 h-5 mr-2 text-primary" />
-                Study Chat
-              </h3>
-              
-              {/* Messages */}
-              <div className="flex-1 mb-4 h-80 overflow-y-auto space-y-3">
-                {messages.map((message) => (
-                  <motion.div
-                    key={message.id}
-                    className={`flex ${message.senderId === "user" ? "justify-end" : "justify-start"}`}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                  >
-                    <div
-                      className={`max-w-xs p-3 rounded-lg text-sm ${
-                        message.senderId === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-foreground"
-                      }`}
-                    >
-                      <p>{message.content}</p>
-                      <span className="text-xs opacity-70 mt-1 block">
-                        {message.timestamp.toLocaleTimeString([], { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </span>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-              
-              {/* Message Input */}
-              <div className="flex items-center space-x-2">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type your message..."
-                  className="flex-1"
-                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                />
+                {/* Connect Button */}
                 <Button
-                  onClick={sendMessage}
-                  disabled={!newMessage.trim()}
-                  size="sm"
-                  className="px-3"
+                  onClick={connectToPeer}
+                  disabled={!peerConnectionId.trim() || isConnecting}
+                  className="w-full gradient-primary hover-glow"
+                  size="lg"
                 >
-                  <Send className="w-4 h-4" />
+                  {isConnecting ? (
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    >
+                      <Phone className="w-5 h-5 mr-2" />
+                    </motion.div>
+                  ) : (
+                    <Phone className="w-5 h-5 mr-2" />
+                  )}
+                  {isConnecting ? "Connecting..." : "Connect"}
                 </Button>
               </div>
-            </Card>
-          </div>
-        )}
+            ) : (
+              <div className="space-y-6">
+                {/* Connected Status */}
+                <div className="text-center">
+                  <Badge variant="default" className="mb-4 bg-green-500">
+                    Connected
+                  </Badge>
+                  <h4 className="text-lg font-semibold mb-2">{connectedPeerName}</h4>
+                  <p className="text-muted-foreground">Skill Level: {connectedPeerSkill}/10</p>
+                </div>
+
+                {/* Video Areas */}
+                <div className="space-y-4">
+                  <div>
+                    <h5 className="text-sm font-medium mb-2">You</h5>
+                    <div className="relative bg-muted rounded-lg overflow-hidden aspect-video">
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                      {!videoEnabled && (
+                        <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                          <div className="text-center">
+                            <User className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">Camera Off</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h5 className="text-sm font-medium mb-2">Peer</h5>
+                    <div className="relative bg-muted rounded-lg overflow-hidden aspect-video">
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-secondary">
+                        <div className="text-center text-secondary-foreground">
+                          <User className="w-8 h-8 mx-auto mb-2" />
+                          <span className="text-sm font-medium">{connectedPeerName}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Disconnect Button */}
+                <Button
+                  variant="destructive"
+                  onClick={disconnectFromPeer}
+                  className="w-full"
+                  size="lg"
+                >
+                  <PhoneOff className="w-5 h-5 mr-2" />
+                  Disconnect
+                </Button>
+              </div>
+            )}
+          </Card>
+
+          {/* Study Chat */}
+          <Card className="glass-card p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center">
+              <MessageCircle className="w-5 h-5 mr-2 text-primary" />
+              Study Chat
+              {isConnected && (
+                <Badge variant="outline" className="ml-auto">
+                  Connected to {connectedPeerName}
+                </Badge>
+              )}
+            </h3>
+            
+            {!isConnected ? (
+              <div className="flex flex-col items-center justify-center h-96 text-center">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                  <MessageCircle className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground">
+                  Connect to a peer to start chatting
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col h-96">
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-2">
+                  {messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-muted-foreground text-center">
+                        Start your learning conversation!
+                      </p>
+                    </div>
+                  ) : (
+                    messages.map((message) => (
+                      <motion.div
+                        key={message.id}
+                        className={`flex ${message.senderId === "user" ? "justify-end" : "justify-start"}`}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                      >
+                        <div
+                          className={`max-w-xs p-3 rounded-lg text-sm ${
+                            message.senderId === "user"
+                              ? "bg-primary text-primary-foreground"
+                              : message.senderId === "system"
+                              ? "bg-muted text-foreground text-center mx-auto"
+                              : "bg-muted text-foreground"
+                          }`}
+                        >
+                          {message.senderId !== "system" && message.senderId !== "user" && (
+                            <p className="text-xs opacity-70 mb-1">{message.senderName}</p>
+                          )}
+                          <p>{message.content}</p>
+                          <span className="text-xs opacity-70 mt-1 block">
+                            {message.timestamp.toLocaleTimeString([], { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </span>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+                
+                {/* Message Input */}
+                <div className="flex items-center space-x-2">
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    className="flex-1"
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                  />
+                  <Button
+                    onClick={sendMessage}
+                    disabled={!newMessage.trim()}
+                    size="sm"
+                    className="px-3"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
       </motion.div>
     </div>
   );
